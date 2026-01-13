@@ -100,7 +100,7 @@ function handleClassTypes() {
  * 处理训练列表接口
  * 根据映射关系查找目标课程并进行 AI 分析
  */
-async function handleWodList() {
+function handleWodList() {
     try {
         console.log("\n========== getWodList 接口处理开始 ==========");
         console.log(`🔑 AI参数: KEY=${AI_KEY ? '已设置' : '未设置'}, URL=${AI_URL}, MODEL=${AI_MODEL}`);
@@ -204,21 +204,37 @@ async function handleWodList() {
 
         console.log("🚀 发现今日 WOD，开始 AI 分析...");
 
-        // 8. 请求 AI 接口
-        const advice = await fetchAIAdvice(typeMapping[targetTypeId], wodContent, AI_KEY, AI_URL, AI_MODEL);
+        // 8. 异步请求 AI 接口（不阻塞响应）
+        fetchAIAdvice(typeMapping[targetTypeId], wodContent, AI_KEY, AI_URL, AI_MODEL)
+            .then(advice => {
+                // 9. 持久化存储分析结果供面板读取
+                const finalData = {
+                    title: typeMapping[targetTypeId],
+                    content: wodContent,
+                    advice: advice,
+                    updateTime: new Date().toLocaleString()
+                };
+                $persistentStore.write(JSON.stringify(finalData), "iwod_latest_cache");
+                $persistentStore.write(TODAY, "iwod_last_date");
 
-        // 9. 持久化存储分析结果供面板读取
-        const finalData = {
-            title: typeMapping[targetTypeId],
-            content: wodContent,
-            advice: advice,
-            updateTime: new Date().toLocaleString()
-        };
-        $persistentStore.write(JSON.stringify(finalData), "iwod_latest_cache");
-        $persistentStore.write(TODAY, "iwod_last_date");
-
-        // 10. 发送系统通知
-        $notification.post(`iWOD - ${TARGET_CLASS}建议`, typeMapping[targetTypeId], advice);
+                // 10. 发送系统通知
+                $notification.post(`iWOD - ${TARGET_CLASS}建议`, typeMapping[targetTypeId], advice);
+                console.log("✅ AI 分析完成并已保存");
+            })
+            .catch(err => {
+                console.log(`⚠️ AI 分析失败: ${err}`);
+                // 即使 AI 失败，也保存基本信息
+                const fallbackData = {
+                    title: typeMapping[targetTypeId],
+                    content: wodContent,
+                    advice: "AI 分析暂时不可用，请稍后重试。",
+                    updateTime: new Date().toLocaleString()
+                };
+                $persistentStore.write(JSON.stringify(fallbackData), "iwod_latest_cache");
+                $persistentStore.write(TODAY, "iwod_last_date");
+            });
+        
+        console.log("📤 已发起 AI 请求，不阻塞原始响应");
 
     } catch (e) {
         console.log("iWOD 助手处理出错: " + e);
