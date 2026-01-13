@@ -1,14 +1,14 @@
 #!name=iWOD 综合体能 AI 助手
 #!desc=监听 iWOD 小程序响应，自动分析“综合体能”课程并生成建议。
 #!category=健身助手
-#!arguments=AI_API_KEY:sk-xxx 填入你的 AI 服务商密钥,AI_API_URL:https://api.openai.com/v1/chat/completions,AI_MODEL:gpt-4o
+#!arguments=AI_API_KEY:sk-xxx 填入你的 AI 服务商密钥,AI_API_URL:https://api.openai.com/v1/chat/completions,AI_MODEL:gpt-4o,TARGET_CLASS:综合体能
 
 [Script]
 # 拦截课程类型列表，建立映射关系
 iWOD_Types = type=http-response,pattern=^https:\/\/api2\.iwod\.cn\/class\/getTypes,requires-body=true,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_handler.js
 
 # 拦截 WOD 训练列表，进行 AI 分析
-iWOD_Handler = type=http-response,pattern=^https:\/\/api2\.iwod\.cn\/everydayWod\/getWodList,requires-body=true,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_handler.js,argument=AI_API_KEY=$AI_API_KEY$&AI_API_URL=$AI_API_URL$&AI_MODEL=$AI_MODEL$
+iWOD_Handler = type=http-response,pattern=^https:\/\/api2\.iwod\.cn\/everydayWod\/getWodList,requires-body=true,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_handler.js,argument=AI_API_KEY=$AI_API_KEY$&AI_API_URL=$AI_API_URL$&AI_MODEL=$AI_MODEL$&TARGET_CLASS=$TARGET_CLASS$
 
 # 仪表盘脚本
 iWOD_Dashboard = type=generic,timeout=10,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_panel.js

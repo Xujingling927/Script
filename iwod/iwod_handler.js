@@ -58,7 +58,12 @@ async function handleWodList() {
         // 1. 解析响应体
         if (!$response.body) return $done({});
         const body = JSON.parse($response.body);
-        if (!body.data || !Array.isArray(body.data)) return $done({});
+        
+        // 数据嵌套在 body.data.data 中
+        if (!body.data || !body.data.data || !Array.isArray(body.data.data)) {
+            console.log("⚠️ 响应数据格式异常");
+            return $done({});
+        }
 
         // 2. 读取课程类型映射
         const mappingStr = $persistentStore.read("iwod_type_mapping");
@@ -69,7 +74,7 @@ async function handleWodList() {
         
         const typeMapping = JSON.parse(mappingStr);
 
-        // 3. 查找"综合体能"的 typeId
+        // 3. 查找"综合体能"的 classType ID
         const targetTypeId = Object.keys(typeMapping).find(id => 
             typeMapping[id].includes(TARGET_CLASS)
         );
@@ -79,39 +84,58 @@ async function handleWodList() {
             return $done({});
         }
 
-        console.log(`✅ 目标课程: ${typeMapping[targetTypeId]} (typeId: ${targetTypeId})`);
+        console.log(`✅ 目标课程: ${typeMapping[targetTypeId]} (classType: ${targetTypeId})`);
 
-        // 4. 在 WOD 列表中查找匹配的课程
-        const targetWod = body.data.find(item => String(item.typeId) === String(targetTypeId));
+        // 4. 获取今天的日期（格式：2026.01.14）
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+        console.log(`📅 查找日期: ${todayStr}`);
+
+        // 5. 查找今天的目标课程
+        const targetWod = body.data.data.find(item => 
+            item.time === todayStr && String(item.classType) === String(targetTypeId)
+        );
+        
         if (!targetWod) {
-            console.log(`今日暂无 "${TARGET_CLASS}" 课程`);
+            console.log(`今日 (${todayStr}) 暂无 "${TARGET_CLASS}" 课程`);
             return $done({});
         }
 
-        // 5. 幂等检查：避免同一天重复请求 AI
+        // 6. 提取训练内容
+        if (!targetWod.detail || !Array.isArray(targetWod.detail) || targetWod.detail.length === 0) {
+            console.log("⚠️ 训练详情为空");
+            return $done({});
+        }
+
+        const wodContent = targetWod.detail[0].detail;
+        if (!wodContent) {
+            console.log("⚠️ 训练内容为空");
+            return $done({});
+        }
+
+        // 7. 幂等检查：避免同一天重复请求 AI
         const cacheDate = $persistentStore.read("iwod_last_date");
         if (cacheDate === TODAY) {
             console.log("今日已完成分析，跳过 AI 请求");
             return $done({});
         }
 
-        const cleanWod = targetWod.content.replace(/<[^>]+>/g, ''); // 清理 HTML 标签
-        console.log("🚀 发现新 WOD，开始 AI 分析...");
+        console.log("🚀 发现今日 WOD，开始 AI 分析...");
 
-        // 6. 请求 AI 接口
-        const advice = await fetchAIAdvice(typeMapping[targetTypeId], cleanWod, AI_KEY, AI_URL, AI_MODEL);
+        // 8. 请求 AI 接口
+        const advice = await fetchAIAdvice(typeMapping[targetTypeId], wodContent, AI_KEY, AI_URL, AI_MODEL);
 
-        // 7. 持久化存储分析结果供面板读取
+        // 9. 持久化存储分析结果供面板读取
         const finalData = {
             title: typeMapping[targetTypeId],
-            content: cleanWod,
+            content: wodContent,
             advice: advice,
             updateTime: new Date().toLocaleString()
         };
         $persistentStore.write(JSON.stringify(finalData), "iwod_latest_cache");
         $persistentStore.write(TODAY, "iwod_last_date");
 
-        // 8. 发送系统通知
+        // 10. 发送系统通知
         $notification.post(`iWOD - ${TARGET_CLASS}建议`, typeMapping[targetTypeId], advice);
 
     } catch (e) {
