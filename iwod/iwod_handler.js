@@ -23,13 +23,24 @@ function handleClassTypes() {
         if (!$response.body) return $done({});
         const body = JSON.parse($response.body);
         
-        if (!body.data || !Array.isArray(body.data)) {
+        // 处理可能的数据嵌套：body.data 或 body.data.data
+        let typesData = null;
+        if (body.data) {
+            if (Array.isArray(body.data)) {
+                typesData = body.data;
+            } else if (body.data.data && Array.isArray(body.data.data)) {
+                typesData = body.data.data;
+            }
+        }
+        
+        if (!typesData) {
+            console.log("⚠️ getTypes 响应数据格式异常");
             return $done({});
         }
         
         // 构建 typeId -> 课程名称 的映射
         const mapping = {};
-        body.data.forEach(type => {
+        typesData.forEach(type => {
             if (type.id && type.title) {
                 mapping[type.id] = type.title;
             }
@@ -38,6 +49,7 @@ function handleClassTypes() {
         // 保存到持久化存储
         $persistentStore.write(JSON.stringify(mapping), "iwod_type_mapping");
         console.log(`📚 已更新课程类型映射，共 ${Object.keys(mapping).length} 个类型`);
+        console.log(`📝 映射内容: ${JSON.stringify(mapping)}`);
         
     } catch (e) {
         console.log("处理课程类型数据失败: " + e);
@@ -90,11 +102,15 @@ async function handleWodList() {
         const today = new Date();
         const todayStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
         console.log(`📅 查找日期: ${todayStr}`);
+        console.log(`🔍 查找课程类型 ID: ${targetTypeId}`);
 
-        // 5. 查找今天的目标课程
+        // 5. 查找今天的目标课程（支持模糊匹配日期，因为有些包含时间戳）
         const targetWod = body.data.data.find(item => 
-            item.time === todayStr && String(item.classType) === String(targetTypeId)
+            item.time && item.time.startsWith(todayStr) && String(item.classType) === String(targetTypeId)
         );
+        
+        // 调试信息：打印所有课程
+        console.log(`📋 今日所有课程: ${body.data.data.map(item => `[${item.time}|类型:${item.classType}]`).join(', ')}`);
         
         if (!targetWod) {
             console.log(`今日 (${todayStr}) 暂无 "${TARGET_CLASS}" 课程`);
