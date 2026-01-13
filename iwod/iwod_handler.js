@@ -229,27 +229,90 @@ async function handleWodList() {
 async function fetchAIAdvice(title, content, apiKey, apiUrl, apiModel) {
     const prompt = `你是一名 CrossFit 专业教练。请根据以下训练内容给出建议：\n训练: ${title}\n内容: ${content}`;
     
+    // 判断是 Gemini 还是 OpenAI API
+    const isGemini = apiUrl.includes('generativelanguage.googleapis.com');
+    
+    console.log(`🤖 使用 AI 服务: ${isGemini ? 'Google Gemini' : 'OpenAI 兼容接口'}`);
+    
     return new Promise((resolve, reject) => {
-        $httpClient.post({
-            url: apiUrl,
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: apiModel,
-                messages: [
-                    { role: "system", content: "你是一位精炼、专业的健身助手。" },
-                    { role: "user", content: prompt }
-                ]
-            })
-        }, (err, resp, data) => {
-            if (err) return reject(err);
-            const res = JSON.parse(data);
-            if (res.choices && res.choices.length > 0) {
-                resolve(res.choices[0].message.content.trim());
-            } else {
-                reject("AI 未返回有效内容");
+        let requestConfig;
+        
+        if (isGemini) {
+            // Google Gemini API 格式
+            const geminiUrl = `${apiUrl}/models/${apiModel}:generateContent?key=${apiKey}`;
+            requestConfig = {
+                url: geminiUrl,
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: prompt
+                        }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        maxOutputTokens: 1000
+                    }
+                })
+            };
+        } else {
+            // OpenAI 兼容格式 (OpenAI / DeepSeek / 其他)
+            requestConfig = {
+                url: apiUrl,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: apiModel,
+                    messages: [
+                        { role: "system", content: "你是一位精炼、专业的健身助手。" },
+                        { role: "user", content: prompt }
+                    ],
+                    temperature: 0.7,
+                    max_tokens: 1000
+                })
+            };
+        }
+        
+        console.log(`📤 发送请求到: ${requestConfig.url.substring(0, 50)}...`);
+        
+        $httpClient.post(requestConfig, (err, resp, data) => {
+            if (err) {
+                console.log(`❌ API 请求失败: ${err}`);
+                return reject(err);
+            }
+            
+            try {
+                const res = JSON.parse(data);
+                let advice = null;
+                
+                if (isGemini) {
+                    // 解析 Gemini 响应
+                    if (res.candidates && res.candidates.length > 0 && 
+                        res.candidates[0].content && res.candidates[0].content.parts && 
+                        res.candidates[0].content.parts.length > 0) {
+                        advice = res.candidates[0].content.parts[0].text.trim();
+                    }
+                } else {
+                    // 解析 OpenAI 格式响应
+                    if (res.choices && res.choices.length > 0 && res.choices[0].message) {
+                        advice = res.choices[0].message.content.trim();
+                    }
+                }
+                
+                if (advice) {
+                    console.log(`✅ AI 分析成功，建议长度: ${advice.length} 字符`);
+                    resolve(advice);
+                } else {
+                    console.log(`❌ AI 未返回有效内容，响应: ${data.substring(0, 200)}`);
+                    reject("AI 未返回有效内容");
+                }
+            } catch (e) {
+                console.log(`❌ 解析 AI 响应失败: ${e}`);
+                reject("解析 AI 响应失败: " + e);
             }
         });
     });
