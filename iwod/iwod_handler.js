@@ -205,48 +205,52 @@ async function handleWodList() {
         console.log("🚀 发现今日 WOD，开始 AI 分析...");
 
         // 8. 带超时的 AI 请求（最多等待 10 秒）
+        let advice = null;
         try {
-            const advice = await Promise.race([
+            advice = await Promise.race([
                 fetchAIAdvice(typeMapping[targetTypeId], wodContent, AI_KEY, AI_URL, AI_MODEL),
                 new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('AI 请求超时')), 10000)
                 )
             ]);
-
-            // 9. 保存 AI 分析结果
-            const finalData = {
-                title: typeMapping[targetTypeId],
-                content: wodContent,
-                advice: advice,
-                updateTime: new Date().toLocaleString()
-            };
-            $persistentStore.write(JSON.stringify(finalData), "iwod_latest_cache");
-            $persistentStore.write(TODAY, "iwod_last_date");
-
-            // 10. 发送系统通知
-            $notification.post(`iWOD - ${TARGET_CLASS}建议`, typeMapping[targetTypeId], advice);
-            console.log("✅ AI 分析完成并已保存");
-
+            console.log("✅ AI 分析完成");
         } catch (aiError) {
             console.log(`⚠️ AI 分析失败或超时: ${aiError.message || aiError}`);
-            
-            // 保存降级数据
-            const fallbackData = {
-                title: typeMapping[targetTypeId],
-                content: wodContent,
-                advice: "AI 分析超时或失败，请稍后查看面板重试。",
-                updateTime: new Date().toLocaleString()
-            };
-            $persistentStore.write(JSON.stringify(fallbackData), "iwod_latest_cache");
-            $persistentStore.write(TODAY, "iwod_last_date");
-            
-            $notification.post(`iWOD - ${TARGET_CLASS}`, typeMapping[targetTypeId], "AI 分析失败，已保存训练内容");
+            advice = "⚠️ AI 分析超时，请稍后刷新重试";
         }
+
+        // 9. 将 AI 建议注入到原始响应体中
+        const wodIndex = body.data.data.findIndex(item => 
+            item.time && item.time.startsWith(todayStr) && 
+            String(item.classType) === String(targetTypeId)
+        );
+
+        if (wodIndex !== -1 && body.data.data[wodIndex].detail && body.data.data[wodIndex].detail[0]) {
+            // 在训练内容后添加 AI 建议分隔符
+            const separator = "\n\n━━━━━━━━━━━━━━━━━━\n🤖 AI 教练建议\n━━━━━━━━━━━━━━━━━━\n\n";
+            body.data.data[wodIndex].detail[0].detail += separator + advice;
+            console.log("✅ AI 建议已注入到响应体中");
+        }
+
+        // 10. 保存到持久化存储（供面板使用）
+        const finalData = {
+            title: typeMapping[targetTypeId],
+            content: wodContent,
+            advice: advice,
+            updateTime: new Date().toLocaleString()
+        };
+        $persistentStore.write(JSON.stringify(finalData), "iwod_latest_cache");
+        $persistentStore.write(TODAY, "iwod_last_date");
+
+        // 11. 发送系统通知
+        $notification.post(`iWOD - ${TARGET_CLASS}`, typeMapping[targetTypeId], "AI 分析已完成");
 
     } catch (e) {
         console.log("iWOD 助手处理出错: " + e);
     }
-    $done({});
+    
+    // 返回修改后的响应体
+    $done({ body: JSON.stringify(body) });
 }
 
 async function fetchAIAdvice(title, content, apiKey, apiUrl, apiModel) {
@@ -262,7 +266,11 @@ ${content}
 2. 技术要点和注意事项
 3. 强度建议（适合初/中/高级）
 
-要求：精炼专业，直接给出建议，不超过300字。`;
+重要格式要求：
+- 不要使用任何 Markdown 符号（*、**、#、-、> 等）
+- 使用纯文本格式，用换行和空格保持层次
+- 使用数字序号（1. 2. 3.）或简单符号（如 ·）
+- 精炼专业，直接给出建议，不超过300字`;
     
     // 判断是 Gemini 还是 OpenAI API
     const isGemini = apiUrl.includes('generativelanguage.googleapis.com');
@@ -303,7 +311,7 @@ ${content}
                 body: JSON.stringify({
                     model: apiModel,
                     messages: [
-                        { role: "system", content: "你是一位精炼、专业的 CrossFit 教练。回复必须简洁，不超过300字。" },
+                        { role: "system", content: "你是一位精炼、专业的 CrossFit 教练。回复必须简洁，不超过300字。不要使用任何 Markdown 格式符号，只用纯文本、换行和数字序号。" },
                         { role: "user", content: prompt }
                     ],
                     temperature: 0.7,
