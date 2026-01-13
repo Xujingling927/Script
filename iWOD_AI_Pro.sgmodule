@@ -8,7 +8,7 @@
 iWOD_Types = type=http-response,pattern=^https:\/\/api2\.iwod\.cn\/class\/getTypes,requires-body=true,timeout=5,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_handler.js
 
 # 拦截 WOD 训练列表，进行 AI 分析
-iWOD_Handler = type=http-response,pattern=^https:\/\/api2\.iwod\.cn\/everydayWod\/getWodList,requires-body=true,timeout=15,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_handler.js,argument=AI_API_KEY={{{AI_API_KEY}}}&AI_API_URL={{{AI_API_URL}}}&AI_MODEL={{{AI_MODEL}}}&TARGET_CLASS={{{TARGET_CLASS}}}
+iWOD_Handler = type=http-response,pattern=^https:\/\/api2\.iwod\.cn\/everydayWod\/getWodList,requires-body=true,timeout=12,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_handler.js,argument=AI_API_KEY={{{AI_API_KEY}}}&AI_API_URL={{{AI_API_URL}}}&AI_MODEL={{{AI_MODEL}}}&TARGET_CLASS={{{TARGET_CLASS}}}
 
 # 仪表盘脚本
 iWOD_Dashboard = type=generic,timeout=10,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_panel.js

@@ -100,7 +100,7 @@ function handleClassTypes() {
  * 处理训练列表接口
  * 根据映射关系查找目标课程并进行 AI 分析
  */
-function handleWodList() {
+async function handleWodList() {
     try {
         console.log("\n========== getWodList 接口处理开始 ==========");
         console.log(`🔑 AI参数: KEY=${AI_KEY ? '已设置' : '未设置'}, URL=${AI_URL}, MODEL=${AI_MODEL}`);
@@ -204,37 +204,44 @@ function handleWodList() {
 
         console.log("🚀 发现今日 WOD，开始 AI 分析...");
 
-        // 8. 异步请求 AI 接口（不阻塞响应）
-        fetchAIAdvice(typeMapping[targetTypeId], wodContent, AI_KEY, AI_URL, AI_MODEL)
-            .then(advice => {
-                // 9. 持久化存储分析结果供面板读取
-                const finalData = {
-                    title: typeMapping[targetTypeId],
-                    content: wodContent,
-                    advice: advice,
-                    updateTime: new Date().toLocaleString()
-                };
-                $persistentStore.write(JSON.stringify(finalData), "iwod_latest_cache");
-                $persistentStore.write(TODAY, "iwod_last_date");
+        // 8. 带超时的 AI 请求（最多等待 10 秒）
+        try {
+            const advice = await Promise.race([
+                fetchAIAdvice(typeMapping[targetTypeId], wodContent, AI_KEY, AI_URL, AI_MODEL),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('AI 请求超时')), 10000)
+                )
+            ]);
 
-                // 10. 发送系统通知
-                $notification.post(`iWOD - ${TARGET_CLASS}建议`, typeMapping[targetTypeId], advice);
-                console.log("✅ AI 分析完成并已保存");
-            })
-            .catch(err => {
-                console.log(`⚠️ AI 分析失败: ${err}`);
-                // 即使 AI 失败，也保存基本信息
-                const fallbackData = {
-                    title: typeMapping[targetTypeId],
-                    content: wodContent,
-                    advice: "AI 分析暂时不可用，请稍后重试。",
-                    updateTime: new Date().toLocaleString()
-                };
-                $persistentStore.write(JSON.stringify(fallbackData), "iwod_latest_cache");
-                $persistentStore.write(TODAY, "iwod_last_date");
-            });
-        
-        console.log("📤 已发起 AI 请求，不阻塞原始响应");
+            // 9. 保存 AI 分析结果
+            const finalData = {
+                title: typeMapping[targetTypeId],
+                content: wodContent,
+                advice: advice,
+                updateTime: new Date().toLocaleString()
+            };
+            $persistentStore.write(JSON.stringify(finalData), "iwod_latest_cache");
+            $persistentStore.write(TODAY, "iwod_last_date");
+
+            // 10. 发送系统通知
+            $notification.post(`iWOD - ${TARGET_CLASS}建议`, typeMapping[targetTypeId], advice);
+            console.log("✅ AI 分析完成并已保存");
+
+        } catch (aiError) {
+            console.log(`⚠️ AI 分析失败或超时: ${aiError.message || aiError}`);
+            
+            // 保存降级数据
+            const fallbackData = {
+                title: typeMapping[targetTypeId],
+                content: wodContent,
+                advice: "AI 分析超时或失败，请稍后查看面板重试。",
+                updateTime: new Date().toLocaleString()
+            };
+            $persistentStore.write(JSON.stringify(fallbackData), "iwod_latest_cache");
+            $persistentStore.write(TODAY, "iwod_last_date");
+            
+            $notification.post(`iWOD - ${TARGET_CLASS}`, typeMapping[targetTypeId], "AI 分析失败，已保存训练内容");
+        }
 
     } catch (e) {
         console.log("iWOD 助手处理出错: " + e);
@@ -243,7 +250,19 @@ function handleWodList() {
 }
 
 async function fetchAIAdvice(title, content, apiKey, apiUrl, apiModel) {
-    const prompt = `你是一名 CrossFit 专业教练。请根据以下训练内容给出建议：\n训练: ${title}\n内容: ${content}`;
+    const prompt = `你是一位专业的 CrossFit 教练。请分析以下训练内容并给出简洁的建议（不超过300字）：
+
+【训练课程】${title}
+
+【训练内容】
+${content}
+
+请从以下角度简要分析：
+1. 训练重点和目标肌群
+2. 技术要点和注意事项
+3. 强度建议（适合初/中/高级）
+
+要求：精炼专业，直接给出建议，不超过300字。`;
     
     // 判断是 Gemini 还是 OpenAI API
     const isGemini = apiUrl.includes('generativelanguage.googleapis.com');
@@ -269,7 +288,7 @@ async function fetchAIAdvice(title, content, apiKey, apiUrl, apiModel) {
                     }],
                     generationConfig: {
                         temperature: 0.7,
-                        maxOutputTokens: 1000
+                        maxOutputTokens: 500
                     }
                 })
             };
@@ -284,11 +303,11 @@ async function fetchAIAdvice(title, content, apiKey, apiUrl, apiModel) {
                 body: JSON.stringify({
                     model: apiModel,
                     messages: [
-                        { role: "system", content: "你是一位精炼、专业的健身助手。" },
+                        { role: "system", content: "你是一位精炼、专业的 CrossFit 教练。回复必须简洁，不超过300字。" },
                         { role: "user", content: prompt }
                     ],
                     temperature: 0.7,
-                    max_tokens: 1000
+                    max_tokens: 500
                 })
             };
         }
