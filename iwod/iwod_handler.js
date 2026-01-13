@@ -2,7 +2,7 @@
  * iWOD 自动捕获与分析脚本
  * 根据请求 URL 路由到不同的处理函数
  */
-const TARGET_CLASS = $argument.TARGET_CLASS || "综合体能";
+const TARGET_CLASS = (typeof $argument !== 'undefined' && typeof $argument.TARGET_CLASS !== 'undefined') ? $argument.TARGET_CLASS : "综合体能";
 const TODAY = new Date().toDateString();
 
 // 根据 URL 判断是哪个接口
