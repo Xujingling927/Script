@@ -1,7 +1,9 @@
 /**
  * iWOD 自动捕获与分析脚本
  */
-const [AI_KEY, AI_URL, AI_MODEL] = $argument.split(',');
+const AI_KEY = $argument.AI_API_KEY;
+const AI_URL = $argument.AI_API_URL;
+const AI_MODEL = $argument.AI_MODEL;
 const TARGET_CLASS = "综合体能";
 const TODAY = new Date().toDateString();
 
@@ -80,4 +82,4 @@ async function fetchAIAdvice(title, content) {
     });
 }
 
-main();/workspaces/Script/iwod/iwod_panel.js
+main();
