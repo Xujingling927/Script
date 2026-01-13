@@ -2,8 +2,29 @@
  * iWOD 自动捕获与分析脚本
  * 根据请求 URL 路由到不同的处理函数
  */
-const TARGET_CLASS = (typeof $argument !== 'undefined' && typeof $argument.TARGET_CLASS !== 'undefined') ? $argument.TARGET_CLASS : "综合体能";
+
+// 解析 URL 参数格式的字符串 (key1=value1&key2=value2)
+function parseArguments(argStr) {
+    const params = {};
+    if (!argStr) return params;
+    
+    argStr.split('&').forEach(pair => {
+        const [key, value] = pair.split('=');
+        if (key && value) {
+            params[key] = decodeURIComponent(value);
+        }
+    });
+    return params;
+}
+
+const args = parseArguments($argument);
+const TARGET_CLASS = args.TARGET_CLASS || "综合体能";
+const AI_KEY = args.AI_API_KEY;
+const AI_URL = args.AI_API_URL;
+const AI_MODEL = args.AI_MODEL;
 const TODAY = new Date().toDateString();
+
+console.log(`🔧 解析到的参数: TARGET_CLASS="${TARGET_CLASS}", AI_KEY=${AI_KEY ? '已设置' : '未设置'}, AI_URL="${AI_URL}", AI_MODEL="${AI_MODEL}"`);
 
 // 根据 URL 判断是哪个接口
 if ($request.url.includes('/class/getTypes')) {
@@ -82,10 +103,6 @@ function handleClassTypes() {
 async function handleWodList() {
     try {
         console.log("\n========== getWodList 接口处理开始 ==========");
-        
-        const AI_KEY = $argument.AI_API_KEY;
-        const AI_URL = $argument.AI_API_URL;
-        const AI_MODEL = $argument.AI_MODEL;
         console.log(`🔑 AI参数: KEY=${AI_KEY ? '已设置' : '未设置'}, URL=${AI_URL}, MODEL=${AI_MODEL}`);
         
         // 1. 解析响应体
