@@ -41,8 +41,8 @@ function handleClassTypes() {
         // 构建 typeId -> 课程名称 的映射
         const mapping = {};
         typesData.forEach(type => {
-            if (type.id && type.title) {
-                mapping[type.id] = type.title;
+            if (type.id && (type.name || type.showName)) {
+                mapping[type.id] = type.showName || type.name;
             }
         });
         
