@@ -8,8 +8,12 @@
 # 必须开启 requires-body 以获取 WOD 文字
 iWOD_Handler = type=http-response,pattern=^https:\/\/api2\.iwod\.cn\/everydayWod\/getWodList,requires-body=true,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_handler.js,argument=AI_API_KEY=$AI_API_KEY$&AI_API_URL=$AI_API_URL$&AI_MODEL=$AI_MODEL$
 
-# 仪表盘回显
+# 仪表盘脚本
 iWOD_Dashboard = type=generic,timeout=10,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_panel.js
+
+[Panel]
+# 面板显示配置
+iWOD_Panel = script-name=iWOD_Dashboard,update-interval=60,title=iWOD AI 助手
 
 [MITM]
 hostname = %APPEND% api2.iwod.cn
