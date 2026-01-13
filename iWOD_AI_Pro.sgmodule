@@ -4,8 +4,10 @@
 #!arguments=AI_API_KEY:sk-xxx 填入你的 AI 服务商密钥,AI_API_URL:https://api.openai.com/v1/chat/completions,AI_MODEL:gpt-4o
 
 [Script]
-# 拦截响应逻辑
-# 必须开启 requires-body 以获取 WOD 文字
+# 拦截课程类型列表，建立映射关系
+iWOD_Types = type=http-response,pattern=^https:\/\/api2\.iwod\.cn\/class\/getTypes,requires-body=true,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_handler.js
+
+# 拦截 WOD 训练列表，进行 AI 分析
 iWOD_Handler = type=http-response,pattern=^https:\/\/api2\.iwod\.cn\/everydayWod\/getWodList,requires-body=true,script-path=https://raw.githubusercontent.com/Xujingling927/Script/refs/heads/main/iwod/iwod_handler.js,argument=AI_API_KEY=$AI_API_KEY$&AI_API_URL=$AI_API_URL$&AI_MODEL=$AI_MODEL$
 
 # 仪表盘脚本
